@@ -31,6 +31,7 @@ fn game(seed: u64, d: Difficulty) -> (Sim, Ai) {
     sim.set_script(P1, Script::passive());
     let mut ai = Ai::new(P0, &tuning(d), u64::from(draw)).unwrap();
     ai.set_manager(Source::Economy, Box::new(Quiet));
+    ai.set_manager(Source::Scouts, Box::new(Quiet));
     (sim, ai)
 }
 
