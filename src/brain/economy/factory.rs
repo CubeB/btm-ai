@@ -489,3 +489,21 @@ fn ferry_state(ctx: &Ctx<'_>, f: &Facts) -> Ferry {
         sea_lift,
     }
 }
+
+/// The ferry is overdue (SPEC §5.9) on a map whose sea lift was lost: no
+/// shipyard, though the faction has a sea transport. Air ferries do not
+/// count, as a sea lift is preferred (spec-readings §5.9).
+pub fn sea_lift_overdue(ctx: &Ctx<'_>, f: &Facts) -> bool {
+    let k = ctx.knobs;
+    let w = &*ctx.world;
+    let c = Census::new(w);
+    k.ferry.urgent
+        && f.needs_ferry
+        && w.reach.unreachable_ground_exists
+        && f.enemy_base.is_some()
+        && !w.reach.land_route_to_enemy
+        && c.tot(Role::Shipyard) == 0
+        && c.def(Role::Shipyard).is_some()
+        && c.def(Role::SeaTransport).is_some()
+        && f.tick >= secs(k.ferry.first_by_s)
+}

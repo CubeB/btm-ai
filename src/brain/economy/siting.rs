@@ -851,3 +851,16 @@ pub fn extractor_site(
         boxed: our_side_refused,
     }
 }
+
+/// The contested test for a site afloat (spec-readings §4.6): armed
+/// non-air contacts within `r`, leaving out those on dry ground our builders
+/// cannot walk to. Across water they cannot reach the site; their guns are
+/// the under-guns test's.
+pub fn armed_ground_within_afloat(view: &dyn GameView, w: &World, p: Pos, r: i64) -> bool {
+    w.contacts.near(p, r).any(|c| {
+        c.armed
+            && !c.air
+            && !c.frame
+            && (view.water_depth(c.pos.tile()) > 0 || w.reach.ground_reachable(c.pos))
+    })
+}

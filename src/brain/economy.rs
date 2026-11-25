@@ -554,6 +554,7 @@ impl EconomyManager {
         bdef: &UnitDef,
     ) -> (Option<Job>, Option<DefId>, Vec<Pos>) {
         let k = ctx.knobs;
+        let sea_lift = factory::sea_lift_overdue(ctx, f);
         let s = S {
             view: ctx.view,
             leaks: ctx.leaks,
@@ -621,7 +622,11 @@ impl EconomyManager {
                 } else {
                     k.eco.save_s
                 };
-                let air_plant = c.is(def, Role::AirPlant);
+                // The first air plant (SPEC §4.2) and a lost shipyard the
+                // overdue ferry waits on (§5.9) are saved for ahead of the
+                // factories.
+                let air_plant =
+                    c.is(def, Role::AirPlant) || (sea_lift && c.is(def, Role::Shipyard));
                 let barred = self.no_save.get(&def).is_some_and(|&t| s.tick < t);
                 if saving.is_none()
                     && !barred
@@ -913,7 +918,11 @@ fn take(
     // Contested site (any type but extractors).
     if !is_extractor(&c, def) {
         let r = dist(k.build.contested_radius);
-        let mut contested = siting::armed_ground_within(s.w, site.at, r);
+        let mut contested = if d.floats {
+            siting::armed_ground_within_afloat(s.view, s.w, site.at, r)
+        } else {
+            siting::armed_ground_within(s.w, site.at, r)
+        };
         if !contested && !matches!(purpose, Purpose::Rebuild(_)) {
             if let Some(home) = f.home {
                 let far = !site.at.within(home, dist(k.army.defend_radius));
