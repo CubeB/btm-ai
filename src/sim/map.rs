@@ -74,22 +74,27 @@ impl Map {
             .unwrap_or_else(|_| Map::builder(1, 1).map)
     }
 
-    /// A 64 × 64 tile two-player map split by a channel of deep water (40)
-    /// between the starts: no land unit but the commander wades it, so the
-    /// army needs a ferry. Point-symmetric, four metal spots and a vent per
-    /// side.
+    /// A 128 × 64 tile (2048 × 1024) two-player map split by a strait of
+    /// deep water (40) from x = 832 to 1216, with a shallow beach on either
+    /// side: no land unit but the commander wades it, so the army needs a
+    /// ferry. Each start is about 600 from its own shore and 960 from the
+    /// far one, beyond the 900 defence radius. Point-symmetric, five metal
+    /// spots and a vent per side.
     pub fn water_split() -> Map {
-        let mut b = Map::builder(64, 64);
-        let mirror = |r: TileRect| TileRect::new(64 - r.x1, 64 - r.z1, 64 - r.x0, 64 - r.z0);
-        for spot in [(6, 13), (13, 6), (16, 16), (4, 20)] {
+        let mut b = Map::builder(128, 64);
+        let mirror = |r: TileRect| TileRect::new(128 - r.x1, 64 - r.z1, 128 - r.x0, 64 - r.z0);
+        for spot in [(6, 22), (8, 38), (22, 14), (24, 46), (36, 30)] {
             let r = TileRect::new(spot.0, spot.1, spot.0 + 2, spot.1 + 2);
             b = b.metal(r, 500).metal(mirror(r), 500);
         }
-        b = b.water(TileRect::new(0, 26, 64, 38), 40);
-        b.start(Pos::new(160, 160))
-            .start(Pos::new(864, 864))
-            .vent(Pos::new(328, 72))
-            .vent(Pos::new(696, 952))
+        b = b
+            .water(TileRect::new(52, 0, 76, 64), 40)
+            .water(TileRect::new(51, 0, 52, 64), 10)
+            .water(TileRect::new(76, 0, 77, 64), 10);
+        b.start(Pos::new(256, 512))
+            .start(Pos::new(1792, 512))
+            .vent(Pos::new(304, 200))
+            .vent(Pos::new(1744, 824))
             .build()
             .unwrap_or_else(|_| Map::builder(1, 1).map)
     }
