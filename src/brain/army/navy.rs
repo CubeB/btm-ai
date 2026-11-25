@@ -15,8 +15,9 @@
 //!   enemy base; else the shipyard site on our water nearest the enemy
 //!   base; else the start positions more than [`START_MIN_DISTANCE`] from
 //!   home, furthest first, rotating every [`START_ROTATE`].
-//! - **Per hull**, first match: commander guard (`world.army
-//!   .commander_danger` / `commander_threats`, within `cmd.guard_radius`);
+//! - **Per hull**, first match: commander guard by hulls on our water
+//!   (`world.army.commander_danger` / `commander_threats`, within
+//!   `cmd.guard_radius`);
 //!   submarines hunting the allowed enemy commander (`world.army
 //!   .hunt_target`) on our water while the fleet is out; attacks on seen,
 //!   naval-reachable enemies within [`ENGAGE_RADIUS`], standing off when
@@ -222,8 +223,10 @@ impl NavyManager {
         let here = s.unit.pos;
         let a = &ctx.world.army;
 
-        // Commander guard.
-        if a.commander_danger {
+        // Commander guard, by hulls on the fleet's water (§5.6 "on the
+        // same water"); a hull elsewhere could neither get there nor stay.
+        let body = ctx.world.map.water_body(station.tile());
+        if a.commander_danger && our_water(ctx, body, here) {
             if let Some(c) = ctx.world.own.commander.and_then(|c| ctx.world.own.get(c)) {
                 let cpos = c.unit.pos;
                 if here.within(cpos, dist(ctx.knobs.cmd.guard_radius)) {
@@ -245,7 +248,6 @@ impl NavyManager {
         }
 
         // Submarines hunt the commander while the fleet is out.
-        let body = ctx.world.map.water_body(station.tile());
         if self.sailing && ctx.world.roles.is(s.unit.def, Role::Submarine) {
             if let Some(c) = a.hunt_target.and_then(|c| ctx.world.contacts.get(c)) {
                 if our_water(ctx, body, c.pos) {

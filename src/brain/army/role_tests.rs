@@ -513,6 +513,36 @@ fn a_hull_guards_the_commander_from_a_ship() {
 }
 
 #[test]
+fn a_hull_on_other_water_does_not_guard_the_commander() {
+    // §5.6: the guard is for hulls "on the same water". A hull in a pond
+    // behind the commander was sent after a ship on the sea it can neither
+    // reach nor hit from where it floats.
+    let map = Map::builder(128, 64)
+        .water(TileRect::new(16, 0, 112, 64), 40)
+        .water(TileRect::new(2, 54, 12, 64), 40)
+        .start(Pos::new(128, 512))
+        .start(Pos::new(1920, 512))
+        .build()
+        .unwrap();
+    let (mut sim, mut ai) = game(map, true, &[], |_| {});
+    spawn(&mut sim, P0, "ARMSY", Pos::new(600, 200));
+    let pond_hull = spawn(&mut sim, P0, "ARMROY", Pos::new(112, 950));
+    let sea_hull = spawn(&mut sim, P0, "ARMROY", Pos::new(1000, 300));
+    let ship = spawn(&mut sim, P1, "CORROY", Pos::new(420, 300));
+    let mut log = Vec::new();
+    let mut danger = false;
+    play(&mut sim, &mut ai, 2 * S, &mut log, |_, ai| {
+        danger |= ai.world().army.commander_danger;
+    });
+    assert!(danger);
+    assert_eq!(
+        commands_to(&log, sea_hull).first(),
+        Some(&Command::Attack(ship))
+    );
+    let pond = commands_to(&log, pond_hull);
+    assert!(!pond.contains(&Command::Attack(ship)), "{pond:?}");
+}
+#[test]
 fn a_lone_hull_holds_the_station() {
     let (mut sim, mut ai) = game(sea(), true, &[], |_| {});
     let yard = spawn(&mut sim, P0, "ARMSY", Pos::new(600, 200));
