@@ -60,7 +60,7 @@ mod tests;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use super::{Ctx, GuardRequest, Manager, Priority, Role, Staging, Step};
+use super::{Ctx, GuardRequest, Manager, Priority, Role, Sampled, Staging, Step};
 use defence::{Defence, Outpost, Piece, Rebuild};
 use factory::{Factories, Wants};
 use facts::{
@@ -250,6 +250,7 @@ impl EconomyManager {
             .filter(|&&u| Some(u) != self.reclaim.field_worker)
             .filter_map(|&u| w.own.get(u))
             .filter(|s| s.unit.pos.within(at, r))
+            .filter(|s| can_walk_to(ctx, s, at))
             .min_by_key(|s| (s.unit.pos.dist2(at), s.id()));
         if let Some(b) = pick {
             out.set_priority(Priority::Tasked);
@@ -1354,4 +1355,18 @@ fn unreachable_expansion(ctx: &Ctx<'_>) -> Option<Pos> {
 fn reclaim_fit(ctx: &Ctx<'_>, b: &Builder, p: Pos) -> bool {
     b.reachable(ctx.world, p)
         && (!b.commander || (ctx.world.reach.ground_reachable(p) && !exposed(ctx, p)))
+}
+
+/// Whether builder `s` can get to `p` (§4.2 context, §4.11 "eligible"): a
+/// flyer always; a ship on naval-reachable water; a ground builder when
+/// `p` and the builder are on the same side of ground reachability. A
+/// constructor sent to a commander out in deep water could only walk to
+/// the shore and give up.
+fn can_walk_to(ctx: &Ctx<'_>, s: &Sampled, p: Pos) -> bool {
+    let reach = &ctx.world.reach;
+    match ctx.def(s.unit.def) {
+        Some(d) if d.flies => true,
+        Some(d) if !d.move_class.hovers && d.move_class.min_depth > 0 => reach.naval_reachable(p),
+        _ => reach.ground_reachable(p) == reach.ground_reachable(s.unit.pos),
+    }
 }

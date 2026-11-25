@@ -226,3 +226,17 @@ fn water_mirror_commanders_do_not_wade_out_to_reclaim() {
         }
     }
 }
+
+#[test]
+fn water_mirrors_send_no_repairs_that_cannot_arrive() {
+    // A builder sent to repair a commander out in deep water, or one that
+    // lost its path to a unit that stepped away, had its repair rejected
+    // (114 such rejections in one game).
+    for (name, s) in waters() {
+        for p in 0..2 {
+            let n = s.rejected[p].get("BadSite/Repair").copied().unwrap_or(0);
+            eprintln!("{name} seat {p}: {n} repairs rejected");
+            assert!(n <= 10, "{name} seat {p}: {n} repairs rejected");
+        }
+    }
+}
