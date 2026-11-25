@@ -15,6 +15,7 @@
 //! Determinism: integer maths only, a seeded xorshift stream owned by the
 //! sim, and every loop in unit, feature or player id order.
 
+mod game;
 mod map;
 mod rng;
 mod roster;
@@ -28,6 +29,7 @@ mod tests;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
+pub use game::{Game, GameError, Pilot};
 pub use map::{Map, MapBuilder, TileRect};
 pub use roster::Side;
 pub use script::Script;
@@ -435,6 +437,23 @@ impl Sim {
         self.players
             .get(usize::from(p.0))
             .is_some_and(|pl| pl.alive)
+    }
+
+    /// Whether the game is decided: no two living players are enemies.
+    pub fn decided(&self) -> bool {
+        let alive: Vec<PlayerId> = (0..self.players.len())
+            .filter(|&i| self.players[i].alive)
+            .filter_map(|i| u8::try_from(i).ok().map(PlayerId))
+            .collect();
+        alive
+            .iter()
+            .all(|&a| alive.iter().all(|&b| self.allied(a, b)))
+    }
+
+    /// The number of units (finished or frames) a player owns.
+    pub fn unit_count(&self, p: PlayerId) -> u32 {
+        let n = self.units.values().filter(|u| u.owner == p).count();
+        u32::try_from(n).unwrap_or(u32::MAX)
     }
 
     /// One value from the sim's stream, to seed an AI seat (SPEC §7).
