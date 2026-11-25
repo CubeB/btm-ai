@@ -204,6 +204,35 @@ fn factory_produces_a_unit() {
 }
 
 #[test]
+fn an_assisted_factory_builds_each_queue_entry_once() {
+    // Regression: when a guarding builder finished the factory's frame, the
+    // factory kept the entry at the head of its queue and built it again.
+    // Two assistants at 80 work/tick and the lab at 100 make the second
+    // assistant land the last bit of work.
+    let mut sim = game(4);
+    let lab = sim
+        .spawn(P0, def(&sim, "ARMLAB"), Pos::new(320, 320), true)
+        .unwrap();
+    let ck = def(&sim, "ARMCK");
+    let pw = def(&sim, "ARMPW");
+    for x in [300, 340] {
+        let b = sim.spawn(P0, ck, Pos::new(x, 400), true).unwrap();
+        order(&mut sim, P0, b, Command::Guard(lab));
+    }
+    order(
+        &mut sim,
+        P0,
+        lab,
+        Command::FactoryQueue { def: pw, count: 1 },
+    );
+    sim.run(1500);
+    let v = sim.view(P0);
+    assert_eq!(v.own_units().iter().filter(|u| u.def == pw).count(), 1);
+    let f = v.own_units().into_iter().find(|u| u.id == lab).unwrap();
+    assert!(f.factory.unwrap().queue.is_empty());
+}
+
+#[test]
 fn combat_kills_and_leaves_a_wreck() {
     let mut sim = game(5);
     let a = def(&sim, "ARMPW");

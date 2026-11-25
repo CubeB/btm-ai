@@ -104,17 +104,24 @@ impl Sim {
 
     fn factory_tick(&mut self, u: &mut Unit, c: &Caps) {
         if let Some(f) = u.building {
-            if self.units.get(&f).is_some_and(|fu| fu.frame.is_some()) {
-                if self.advance_frame(f, u.owner, c.worker) {
-                    u.fqueue.pop_front();
-                    u.building = None;
-                    let fp = self.def(u.def).footprint;
-                    let p = u.pos();
-                    let exit = Pos::new(p.x, p.z + fp.1 * TILE_SIZE / 2 + 32);
-                    if let Some(nu) = self.units.get_mut(&f) {
-                        nu.cmds.push_back(Command::Move(exit));
-                    }
+            let state = self.units.get(&f).map(|fu| fu.frame.is_some());
+            // A frame an assisting builder finished is done all the same.
+            let done = match state {
+                Some(true) => self.advance_frame(f, u.owner, c.worker),
+                Some(false) => true,
+                None => false,
+            };
+            if done {
+                u.fqueue.pop_front();
+                u.building = None;
+                let fp = self.def(u.def).footprint;
+                let p = u.pos();
+                let exit = Pos::new(p.x, p.z + fp.1 * TILE_SIZE / 2 + 32);
+                if let Some(nu) = self.units.get_mut(&f) {
+                    nu.cmds.push_back(Command::Move(exit));
                 }
+            }
+            if state.is_some() {
                 return;
             }
             u.building = None;
