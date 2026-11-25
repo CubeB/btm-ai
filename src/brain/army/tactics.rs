@@ -56,6 +56,9 @@ struct Plan {
     guard: BTreeSet<UnitId>,
     guard_site: Option<Pos>,
     target: Option<UnitId>,
+    /// With intruders but none seen now: the remembered intruder nearest
+    /// home, where the responders go and look.
+    look: Option<Pos>,
     responders: BTreeSet<UnitId>,
     holding: bool,
     outpost: Option<(Pos, BTreeSet<UnitId>, Vec<UnitId>)>,
@@ -437,6 +440,11 @@ impl ArmyManager {
             if let Some(t) = target {
                 return Some(Command::Attack(t));
             }
+            if let Some(p) = plan.look {
+                if d.move_class.hovers || ctx.world.reach.ground_reachable(p) {
+                    return Some(Command::AttackMove(p));
+                }
+            }
         }
         if plan.raid.contains(&u) {
             return raid_errand(ctx, plan, u, here);
@@ -631,8 +639,25 @@ fn defence(ctx: &Ctx<'_>, plan: &mut Plan) {
     let combat = &ctx.world.own.combat;
     plan.holding = k.hold_outnumbered && t.intruders.len() > combat.len();
     plan.target = t.target_intruder;
-    let Some(target) = t.target_intruder.and_then(|i| ctx.world.contacts.get(i)) else {
-        return;
+    let target = match t.target_intruder.and_then(|i| ctx.world.contacts.get(i)) {
+        Some(c) => c.pos,
+        None => {
+            // Intruders remembered but none seen now: nobody could attack,
+            // so Defend held for good while the memory stood (a tower
+            // seen once near home froze a 72-unit army). The response goes
+            // and looks instead, which refreshes or forgets the contact.
+            let home = super::home(ctx).unwrap_or_default();
+            let Some(c) = t
+                .intruders
+                .iter()
+                .filter_map(|&i| ctx.world.contacts.get(i))
+                .min_by_key(|c| (c.pos.dist2(home), c.id))
+            else {
+                return;
+            };
+            plan.look = Some(c.pos);
+            c.pos
+        }
     };
     if plan.holding {
         return;
@@ -649,7 +674,7 @@ fn defence(ctx: &Ctx<'_>, plan: &mut Plan) {
         return;
     }
     let pos = |u: UnitId| ctx.world.own.get(u).map(|s| s.unit.pos).unwrap_or_default();
-    pool.sort_by_key(|&u| (pos(u).dist2(target.pos), u));
+    pool.sort_by_key(|&u| (pos(u).dist2(target), u));
     let n = i64::try_from(pool.len()).unwrap_or(i64::MAX);
     if n == 0 {
         return;

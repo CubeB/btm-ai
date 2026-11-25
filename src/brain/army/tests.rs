@@ -348,3 +348,33 @@ fn kiting_keeps_a_ranged_unit_out_of_a_slow_raiders_reach() {
     let (closest, _, _) = kite_duel(false);
     assert!(closest < 200, "closest {closest}");
 }
+
+#[test]
+fn defenders_go_and_look_for_an_intruder_out_of_sight() {
+    // Regression: an intruder remembered but not seen now (here a tower a
+    // constructor glimpsed, and lost sight of once the first response
+    // stopped) held the AI in Defend with no
+    // target, so the whole army stood at the rally for the rest of the
+    // game. One responder now goes to the remembered spot.
+    let (mut sim, mut ai) = game(wide(), Script::passive(), false, &[]);
+    let raiders = spawn_row(&mut sim, P0, "ARMPW", Pos::new(450, 600), 4);
+    let tower_at = Pos::new(1150, 512);
+    let tower = spawn(&mut sim, P1, "CORLLT", tower_at);
+    spawn(&mut sim, P0, "ARMCK", Pos::new(1150, 640));
+    let mut log = Vec::new();
+    let mut defended = false;
+    play(&mut sim, &mut ai, 60 * S, &mut log, |_, ai| {
+        defended |= ai.world().army.phase == Phase::Defend;
+    });
+    assert!(defended, "the tower was an intruder");
+    let went = raiders.iter().any(|&u| {
+        log.iter()
+            .filter(|(t, o)| *t >= 10 * S && o.unit == u)
+            .any(|(_, o)| match &o.command {
+                Command::Attack(t) => *t == tower,
+                Command::AttackMove(p) => p.within(tower_at, 64),
+                _ => false,
+            })
+    });
+    assert!(went, "someone went to look after the first response");
+}
