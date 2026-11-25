@@ -19,14 +19,18 @@ fn tuning(d: Difficulty) -> Resolved {
     resolve(&Personality::new("test"), d, Faction::from_name("ARM"), &[]).unwrap()
 }
 
-/// A game with the passive script on P1 and the real AI seat on P0.
+/// A game with the passive script on P1 and the real AI seat on P0. The
+/// economy slot is [`Quiet`]: these tests exercise the core, and were
+/// written against the stub economy (economy behaviour is tested in
+/// `economy::tests`).
 fn game(seed: u64, d: Difficulty) -> (Sim, Ai) {
     let mut cfg = SimConfig::two_player(seed);
     cfg.order_delay = DEFAULT_ORDER_DELAY;
     let mut sim = Sim::new(Map::two_player(), cfg).unwrap();
     let draw = sim.draw_seat_seed();
     sim.set_script(P1, Script::passive());
-    let ai = Ai::new(P0, &tuning(d), u64::from(draw)).unwrap();
+    let mut ai = Ai::new(P0, &tuning(d), u64::from(draw)).unwrap();
+    ai.set_manager(Source::Economy, Box::new(Quiet));
     (sim, ai)
 }
 
@@ -73,6 +77,13 @@ fn spawn_raiders(sim: &mut Sim, n: i32) -> Vec<UnitId> {
             .unwrap()
         })
         .collect()
+}
+
+/// A manager that does nothing.
+struct Quiet;
+
+impl Manager for Quiet {
+    fn update(&mut self, _ctx: &mut Ctx<'_>, _out: &mut Staging) {}
 }
 
 #[test]
