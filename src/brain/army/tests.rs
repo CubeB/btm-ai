@@ -378,3 +378,19 @@ fn defenders_go_and_look_for_an_intruder_out_of_sight() {
     });
     assert!(went, "someone went to look after the first response");
 }
+
+#[test]
+fn a_unit_set_down_across_water_is_not_reordered_every_pass() {
+    // Regression: a raider landed on the far shore was sent to the rally on
+    // our side every pass; the walk ended at once and the limiter (SPEC
+    // §2.3) refused most of the army's other orders behind it.
+    let (mut sim, mut ai) = game(Map::water_split(), Script::passive(), false, &[]);
+    let landed = spawn(&mut sim, P0, "ARMPW", Pos::new(1400, 900));
+    let mut log = Vec::new();
+    play(&mut sim, &mut ai, 60 * S, &mut log, |_, _| {});
+    let moves = commands_to(&log, landed)
+        .into_iter()
+        .filter(|c| matches!(c, Command::Move(_) | Command::AttackMove(_)))
+        .count();
+    assert!(moves <= 2, "{moves} moves to a unit that cannot walk home");
+}

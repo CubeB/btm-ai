@@ -239,9 +239,43 @@ pub(crate) fn order(ctx: &Ctx<'_>, out: &mut Staging, unit: UnitId, want: Comman
             return;
         }
     }
+    if let Command::Move(p) | Command::AttackMove(p) = want {
+        if cut_off(ctx, unit, p) {
+            return;
+        }
+    }
     use crate::view::Orders;
     out.now(unit, want);
 }
+
+/// An idle walking unit set down off our ground (a ferry landing) cannot walk
+/// to a point on it: the order would end at once and be sent again every
+/// pass (spec-readings §2.3). Ground next to our ground counts as ours, so a
+/// shore tile that reads unreachable does not strand a unit.
+fn cut_off(ctx: &Ctx<'_>, unit: UnitId, p: Pos) -> bool {
+    let w = &*ctx.world;
+    let Some(s) = w.own.get(unit) else {
+        return false;
+    };
+    let walks = ctx
+        .def(s.unit.def)
+        .is_some_and(|d| !d.flies && !d.move_class.hovers && d.move_class.min_depth <= 0);
+    if !walks || current_order(ctx, unit).is_some() || !w.reach.ground_reachable(p) {
+        return false;
+    }
+    let h = s.unit.pos;
+    !(-1..=1).any(|dx| {
+        (-1..=1).any(|dz| {
+            w.reach.ground_reachable(Pos {
+                x: h.x + dx * CUT_OFF_STEP,
+                z: h.z + dz * CUT_OFF_STEP,
+            })
+        })
+    })
+}
+
+/// The step of the ring checked round a unit for [`cut_off`].
+const CUT_OFF_STEP: i32 = 32;
 
 /// Units in id order without the members of `sets`.
 pub(crate) fn without(units: &[UnitId], sets: &[&BTreeSet<UnitId>]) -> Vec<UnitId> {
