@@ -172,6 +172,10 @@ pub struct EconomyManager {
     upgrade: Option<Upgrade>,
     /// The threat of the held build-site guard request (SPEC §5.6).
     guard_threat: i64,
+    /// The item saved for, since when, and its window in seconds (§4.2).
+    saving_since: Option<(DefId, Tick, i32, bool)>,
+    /// Items whose saving ran out unbuilt, not saved for again until then.
+    no_save: BTreeMap<DefId, Tick>,
     /// The last "expansion wanted" check (SPEC §5.9).
     expansion_checked: Option<Tick>,
 }
@@ -190,6 +194,8 @@ impl Manager for EconomyManager {
 const SITE_STANDS: i64 = 48;
 /// "Expansion wanted" is checked at most this often (SPEC §5.9).
 const EXPANSION_CHECK_S: i32 = 10;
+/// The saving window used when saving has no recorded start (§4.2).
+const SAVE_FALLBACK_S: i32 = 60;
 /// A build-site guard is released once a building of ours stands this close.
 const GUARD_DONE: i64 = 64;
 /// Exposure counts contacts seen within this many ticks (SPEC §5.7).
@@ -308,7 +314,8 @@ impl EconomyManager {
             walls_owed: detail.fort.is_some_and(|p| p.every_tower),
             sub_work: sub_work(ctx, &facts),
         };
-        self.factories.top_up(ctx, out, &facts, wants);
+        let hold = self.saving_since.is_some_and(|s| s.3) && ctx.world.eco.saving_for.is_some();
+        self.factories.top_up(ctx, out, &facts, wants, hold);
 
         // 2. One idle builder, round robin.
         let idle = ctx.world.own.idle_builders.clone();
@@ -508,6 +515,7 @@ impl EconomyManager {
                 ctx.tick.saturating_add(secs(k.build.failed_site_s)),
             );
         }
+        let saving = self.saving_clock(ctx.tick, saving);
         ctx.world.eco.saving_for = saving;
         if job.is_some() {
             return job;
@@ -595,6 +603,12 @@ impl EconomyManager {
         let mut saving = s.w.eco.saving_for.filter(|d| wants.contains(d));
         let mut fails = Vec::new();
         let eco = &s.w.economy;
+        // The saving test leaves out what the factories commit: while
+        // saving they queue only builders (Factories::top_up).
+        let saving_eco = super::EconomySummary {
+            raw: eco.raw,
+            committed_metal: eco.committed_metal - s.w.own.factory_committed_metal,
+        };
         for def in wants {
             let Some(d) = s.def(def) else { continue };
             let econ = is_economy_type(&c, def, f);
@@ -607,7 +621,18 @@ impl EconomyManager {
                 } else {
                     k.eco.save_s
                 };
-                if saving.is_none() && affordable_new(eco, d, b.worker, i64::from(window)) {
+                let air_plant = c.is(def, Role::AirPlant);
+                let barred = self.no_save.get(&def).is_some_and(|&t| s.tick < t);
+                if saving.is_none()
+                    && !barred
+                    && affordable_new(
+                        if air_plant { &saving_eco } else { eco },
+                        d,
+                        b.worker,
+                        i64::from(window),
+                    )
+                {
+                    self.saving_since = Some((def, s.tick, window, air_plant));
                     saving = Some(def);
                 }
                 continue;
@@ -626,6 +651,9 @@ impl EconomyManager {
                 }
             };
             if let Err(why) = take(&s, b, def, d, site, purpose) {
+                // Affordable, with a site it may not take: saving for it
+                // would only hold the factories (spec-readings §4.2).
+                saving = unsaved_without_site(saving, def);
                 if why == Refusal::Contested {
                     fails.push(site.at);
                 }
@@ -635,6 +663,31 @@ impl EconomyManager {
             return (Some(Job::Build { def, site, purpose }), None, fails);
         }
         (None, saving, fails)
+    }
+
+    /// Keeps the saving clock (spec-readings §4.2): saving that outlasts its
+    /// window unbuilt ends, and that item is not saved for again for one
+    /// more window. Returns the saving state to publish.
+    fn saving_clock(&mut self, tick: Tick, saving: Option<DefId>) -> Option<DefId> {
+        let Some(d) = saving else {
+            self.saving_since = None;
+            return None;
+        };
+        match self.saving_since {
+            Some((sd, since, window, _)) if sd == d => {
+                let w = secs(window);
+                if tick.saturating_sub(since) >= w {
+                    self.saving_since = None;
+                    self.no_save.insert(d, tick.saturating_add(w));
+                    return None;
+                }
+            }
+            // Saving carried over without a clock: start one at the
+            // shorter window.
+            _ => self.saving_since = Some((d, tick, SAVE_FALLBACK_S, false)),
+        }
+        self.no_save.retain(|_, &mut t| tick < t);
+        Some(d)
     }
 
     /// The upgrade fallback (SPEC §4.5): with no free patch, take down the

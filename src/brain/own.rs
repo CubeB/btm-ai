@@ -135,6 +135,8 @@ pub struct OwnState {
     pub total: BTreeMap<DefId, u32>,
     /// Metal per second committed by builders and factories on frames.
     pub committed_metal: Amount,
+    /// The part of `committed_metal` on frames a factory is building.
+    pub factory_committed_metal: Amount,
     /// The last 8 building losses within 60 s, oldest first.
     pub building_losses: Vec<Loss>,
     /// The last 16 mobile unit losses within 30 s, oldest first.
@@ -313,11 +315,37 @@ impl OwnState {
             .or(self.home);
     }
 
+    /// Metal per second (milli) that `rate` (work per tick on each frame)
+    /// commits: remaining metal / remaining seconds of each frame, which is
+    /// 30 × cost × rate / total work.
+    fn committed(&self, view: &dyn GameView, rate: &BTreeMap<UnitId, i64>) -> i64 {
+        let mut committed = 0i64;
+        for (f, r) in rate {
+            let Some(s) = self.get(*f) else { continue };
+            let (Some(p), Some(d)) = (s.unit.frame, view.unit_def(s.unit.def)) else {
+                continue;
+            };
+            if p.total > 0 && p.done < p.total {
+                committed = committed.saturating_add(
+                    d.cost_metal.milli().saturating_mul(30).saturating_mul(*r) / p.total,
+                );
+            }
+        }
+        committed
+    }
+
     fn count(&mut self, view: &dyn GameView, in_flight: &InFlight, tick: Tick) {
         self.completed.clear();
         self.total.clear();
         // Work rate (per tick) on each frame, and who is attending it.
         let mut rate: BTreeMap<UnitId, i64> = BTreeMap::new();
+        // Frames inside a factory (their work, assistants included, is the
+        // factory spend).
+        let in_factory: BTreeSet<UnitId> = self
+            .units
+            .iter()
+            .filter_map(|s| s.unit.factory.as_ref().and_then(|f| f.building))
+            .collect();
         let mut attended: BTreeSet<UnitId> = BTreeSet::new();
         for s in &self.units {
             let def = s.unit.def;
@@ -364,19 +392,13 @@ impl OwnState {
         }
         // Committed metal: remaining metal / remaining seconds of each frame
         // worked on, which is 30 × cost × rate / total work.
-        let mut committed = 0i64;
-        for (f, r) in &rate {
-            let Some(s) = self.get(*f) else { continue };
-            let (Some(p), Some(d)) = (s.unit.frame, view.unit_def(s.unit.def)) else {
-                continue;
-            };
-            if p.total > 0 && p.done < p.total {
-                committed = committed.saturating_add(
-                    d.cost_metal.milli().saturating_mul(30).saturating_mul(*r) / p.total,
-                );
-            }
-        }
-        self.committed_metal = Amount(committed);
+        self.committed_metal = Amount(self.committed(view, &rate));
+        let factory_rate: BTreeMap<UnitId, i64> = rate
+            .iter()
+            .filter(|(f, _)| in_factory.contains(f))
+            .map(|(&f, &r)| (f, r))
+            .collect();
+        self.factory_committed_metal = Amount(self.committed(view, &factory_rate));
         self.orphan_frames = self
             .units
             .iter()

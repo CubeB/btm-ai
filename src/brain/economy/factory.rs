@@ -37,8 +37,18 @@ pub struct Factories {
 
 impl Factories {
     /// Tops up every factory, in id order (SPEC §4.2 step 1, §4.4).
-    pub fn top_up(&mut self, ctx: &Ctx<'_>, out: &mut Staging, f: &Facts, wants: Wants) {
+    pub fn top_up(
+        &mut self,
+        ctx: &Ctx<'_>,
+        out: &mut Staging,
+        f: &Facts,
+        wants: Wants,
+        saving: bool,
+    ) {
+        // While the tier-two reserve holds, or while the planner saves for
+        // an item (spec-readings §4.2), only builders are queued.
         let reserve = self.reserve_holds(ctx, f);
+        let hold = reserve || saving;
         let factories = ctx.world.own.factories.clone();
         self.heads.retain(|id, _| factories.contains(id));
         for id in factories {
@@ -89,7 +99,7 @@ impl Factories {
                 continue;
             }
             // 4. One unit.
-            if let Some(def) = choose(ctx, fdef, f, wants, reserve) {
+            if let Some(def) = choose(ctx, fdef, f, wants, hold) {
                 out.set_priority(Priority::Tasked);
                 out.now(id, Command::FactoryQueue { def, count: 1 });
             }

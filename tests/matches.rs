@@ -81,11 +81,13 @@ struct Summary {
     ended: Tick,
     /// Per seat: completed and lost units by type name.
     built: [BTreeMap<String, u32>; 2],
+    /// Per seat: when the first of each type was completed.
+    first: [BTreeMap<String, Tick>; 2],
     died: [BTreeMap<String, u32>; 2],
     /// Per seat: rejected orders by "reason/command".
     rejected: [BTreeMap<String, u32>; 2],
     /// Per seat: one-second samples with the commander in deep water on
-    /// its way to (or at) a reclaim.
+    /// its way to (or at) a reclaim that is not clearing a build site.
     commander_wet_s: [u32; 2],
     /// Per seat: the dispatcher's counters at the end.
     stats: [DispatchStats; 2],
@@ -137,6 +139,11 @@ fn mirror(map: Map, seed: u64, faction: Faction, minutes: Tick) -> Summary {
                             u.commands.first(),
                             Some(Command::ReclaimFeature(_) | Command::ReclaimUnit(_))
                         )
+                        // Not a wreck cleared off a build site (§4.2).
+                        && !u
+                            .commands
+                            .iter()
+                            .any(|c| matches!(c, Command::Build { .. }))
                 });
                 *wet += u32::from(deep);
             }
@@ -147,7 +154,12 @@ fn mirror(map: Map, seed: u64, faction: Faction, minutes: Tick) -> Summary {
     let name = |d: DefId| g.sim.defs()[usize::from(d.0)].name.clone();
     for e in &g.sim.events {
         match *e {
-            Event::Completed { owner, def, .. } => {
+            Event::Completed {
+                owner, def, tick, ..
+            } => {
+                s.first[usize::from(owner.0)]
+                    .entry(name(def))
+                    .or_insert(tick);
                 *s.built[usize::from(owner.0)].entry(name(def)).or_default() += 1;
             }
             Event::Died { owner, def, .. } => {
@@ -246,12 +258,36 @@ fn water_mirrors_ferry_by_sea_and_end() {
     // One-unit air ferries that get shot down never decided these games.
     // A shipyard that can build a sea transport prefers it (SPEC §5.9).
     for (name, s) in waters() {
-        eprintln!("{name}: decided {} at {} s", s.decided, s.ended / TICKS_PER_SECOND);
+        eprintln!(
+            "{name}: decided {} at {} s",
+            s.decided,
+            s.ended / TICKS_PER_SECOND
+        );
         if name.starts_with("ARM") {
             assert!(s.decided, "{name}: not decided in 20 minutes");
         }
         let sea = count(&s.built[0], &["ARMTSHIP", "CORTSHIP"])
             + count(&s.built[1], &["ARMTSHIP", "CORTSHIP"]);
         assert!(sea > 0, "{name}: no sea transport");
+    }
+}
+
+#[test]
+fn water_mirrors_afford_their_air_plant() {
+    // The air plant is saved for (SPEC §4.2, `eco.save_tech_s`); while it
+    // is, the factories queue only builders, so their spend no longer keeps
+    // it out of reach (it once came after 13 minutes, or never).
+    for (name, s) in waters() {
+        for p in 0..2 {
+            let at = ["ARMAP", "CORAP"]
+                .iter()
+                .find_map(|n| s.first[p].get(*n).copied());
+            eprintln!("{name} seat {p}: air plant at {at:?}");
+            if s.decided && at.is_none() {
+                continue;
+            }
+            let at = at.unwrap_or(Tick::MAX) / TICKS_PER_SECOND;
+            assert!(at <= 660, "{name} seat {p}: air plant at {at} s");
+        }
     }
 }
