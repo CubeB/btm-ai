@@ -227,8 +227,10 @@ impl Sim {
             return MoveResult::Stuck;
         }
         if !c.flies {
+            // A path used up (or cleared on reaching a work site) is planned
+            // again: a target that moved on a little needs a new one.
             let fresh = match u.path_goal {
-                Some(g) => !g.within(goal, 32),
+                Some(g) => u.path.is_empty() || !g.within(goal, 32),
                 None => true,
             };
             if fresh {

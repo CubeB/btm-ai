@@ -593,3 +593,26 @@ fn same_seed_same_game() {
     assert!(a.2 > 4 && a.3 > 4, "the game did something: {a:?}");
     assert_ne!(run(43).1, a.1);
 }
+
+#[test]
+fn a_builder_follows_a_repair_target_that_moves_off() {
+    let mut sim = game(17);
+    let ck = sim
+        .spawn(P0, def(&sim, "ARMCK"), Pos::new(300, 300), true)
+        .unwrap();
+    let pw = sim
+        .spawn(P0, def(&sim, "ARMPW"), Pos::new(520, 300), true)
+        .unwrap();
+    sim.units.get_mut(&pw).unwrap().hp = 1000;
+    order(&mut sim, P0, ck, Command::Repair(pw));
+    // Into reach: the builder stops walking and starts to heal.
+    sim.run(150);
+    assert!(sim.units[&ck].pos().within(sim.units[&pw].pos(), 96));
+    // The target steps a little further off than the builder's reach,
+    // less than a path's re-plan distance from where the builder went.
+    let to = sim.units[&pw].pos().toward(Pos::new(900, 300), 30);
+    order(&mut sim, P0, pw, Command::Move(to));
+    sim.run(60);
+    assert!(sim.rejected.is_empty(), "{:?}", sim.rejected);
+    assert_eq!(sim.units[&ck].cmds.front(), Some(&Command::Repair(pw)));
+}
