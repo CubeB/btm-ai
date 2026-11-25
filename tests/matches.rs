@@ -84,7 +84,8 @@ struct Summary {
     died: [BTreeMap<String, u32>; 2],
     /// Per seat: rejected orders by "reason/command".
     rejected: [BTreeMap<String, u32>; 2],
-    /// Per seat: one-second samples with the commander in deep water.
+    /// Per seat: one-second samples with the commander in deep water on
+    /// its way to (or at) a reclaim.
     commander_wet_s: [u32; 2],
     /// Per seat: the dispatcher's counters at the end.
     stats: [DispatchStats; 2],
@@ -130,7 +131,12 @@ fn mirror(map: Map, seed: u64, faction: Faction, minutes: Tick) -> Summary {
                 let p = PlayerId(u8::try_from(i).unwrap());
                 let v = g.sim.view(p);
                 let deep = v.own_units().iter().any(|u| {
-                    v.unit_def(u.def).unwrap().commander && v.water_depth(u.pos.tile()) > DEEP
+                    v.unit_def(u.def).unwrap().commander
+                        && v.water_depth(u.pos.tile()) > DEEP
+                        && matches!(
+                            u.commands.first(),
+                            Some(Command::ReclaimFeature(_) | Command::ReclaimUnit(_))
+                        )
                 });
                 *wet += u32::from(deep);
             }
@@ -202,6 +208,21 @@ fn water_mirrors_do_not_ferry_builders_to_the_far_shore() {
         for p in 0..2 {
             let lost = count(&s.died[p], &["ARMCK", "CORCK"]);
             assert!(lost <= 5, "{name} seat {p}: {lost} constructors lost");
+        }
+    }
+}
+
+#[test]
+fn water_mirror_commanders_do_not_wade_out_to_reclaim() {
+    // Both commanders used to wade the strait to the same wreck and fight
+    // over it there.
+    for (name, s) in waters() {
+        eprintln!("{name}: reclaiming in deep water {:?} s", s.commander_wet_s);
+        for (p, &wet) in s.commander_wet_s.iter().enumerate() {
+            assert!(
+                wet <= 5,
+                "{name} seat {p}: {wet} s reclaiming in deep water"
+            );
         }
     }
 }

@@ -487,9 +487,11 @@ impl EconomyManager {
         }
         let flying: Vec<crate::view::Order> = ctx.in_flight.all(ctx.tick).copied().collect();
         let claimed = reclaim::claimed_features(ctx.world, &flying);
-        let own = self
-            .reclaim
-            .own_wrecks(ctx.view, ctx.leaks, k, &*ctx.world, f, b, &claimed);
+        let own =
+            self.reclaim
+                .own_wrecks(ctx.view, ctx.leaks, k, &*ctx.world, f, b, &claimed, |p| {
+                    reclaim_fit(ctx, b, p)
+                });
         if !own.is_empty() {
             return Some(Job::Reclaim(own));
         }
@@ -516,7 +518,9 @@ impl EconomyManager {
                 return Some(Job::Repair(t));
             }
         }
-        if let Some(x) = reclaim::harvest(ctx.view, ctx.leaks, k, ctx.world, f, b) {
+        if let Some(x) = reclaim::harvest(ctx.view, ctx.leaks, k, ctx.world, f, b, |p| {
+            reclaim_fit(ctx, b, p)
+        }) {
             return Some(Job::Reclaim(vec![x]));
         }
         if !saving {
@@ -1340,4 +1344,14 @@ fn unreachable_expansion(ctx: &Ctx<'_>) -> Option<Pos> {
                 && !siting::under_guns(ctx.view, ctx.knobs, w, d.center)
         })
         .map(|d| d.center)
+}
+
+/// Whether builder `b` may reclaim a feature at `p` (§4.2 rule 8 and 11):
+/// it must be reachable on the builder's layer (§4.2 context). The
+/// commander also keeps to the ground our land builders reach and to
+/// spots that are not exposed (§5.7): an amphibious commander would
+/// otherwise wade across a strait to a wreck under the enemy's guns.
+fn reclaim_fit(ctx: &Ctx<'_>, b: &Builder, p: Pos) -> bool {
+    b.reachable(ctx.world, p)
+        && (!b.commander || (ctx.world.reach.ground_reachable(p) && !exposed(ctx, p)))
 }

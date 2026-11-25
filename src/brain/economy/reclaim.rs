@@ -138,6 +138,7 @@ impl Reclaim {
         f: &Facts,
         b: &Builder,
         claimed: &BTreeSet<FeatureId>,
+        fit: impl Fn(Pos) -> bool,
     ) -> Vec<FeatureId> {
         // Reclaimers that went idle are done.
         let idle: BTreeSet<UnitId> = w.own.idle_builders.iter().copied().collect();
@@ -176,6 +177,7 @@ impl Reclaim {
             }
             for x in here {
                 if !claimed.contains(&x.id)
+                    && fit(x.pos)
                     && !siting::under_guns(view, k, w, x.pos)
                     && !ripe.iter().any(|r| r.id == x.id)
                 {
@@ -203,7 +205,8 @@ impl Reclaim {
 /// The harvest fallback (SPEC §4.2 rule 11): builders at base and ships;
 /// reclaimable features on explored ground within 1200 of home (or the
 /// ship), not under guns, with metal (or energy when energy is wanted);
-/// metal-bearing first, then the nearest.
+/// metal-bearing first, then the nearest. `fit` is the caller's test of a
+/// feature's position (reachability, the commander's safety).
 pub fn harvest(
     view: &dyn GameView,
     leaks: &dyn FogLeaks,
@@ -211,6 +214,7 @@ pub fn harvest(
     w: &World,
     f: &Facts,
     b: &Builder,
+    fit: impl Fn(Pos) -> bool,
 ) -> Option<FeatureId> {
     if !b.at_base && !b.naval {
         return None;
@@ -223,6 +227,7 @@ pub fn harvest(
         .filter(|x| x.metal.milli() > 0 || (f.energy_wanted && x.energy.milli() > 0))
         .filter(|x| !b.naval || view.water_depth(x.pos.tile()) > 0)
         .filter(|x| !siting::under_guns(view, k, w, x.pos))
+        .filter(|x| fit(x.pos))
         .min_by_key(|x| (x.metal.milli() <= 0, x.pos.dist2(b.pos), x.id))
         .map(|x| x.id)
 }
