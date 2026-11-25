@@ -240,3 +240,18 @@ fn water_mirrors_send_no_repairs_that_cannot_arrive() {
         }
     }
 }
+
+#[test]
+fn water_mirrors_ferry_by_sea_and_end() {
+    // One-unit air ferries that get shot down never decided these games.
+    // A shipyard that can build a sea transport prefers it (SPEC §5.9).
+    for (name, s) in waters() {
+        eprintln!("{name}: decided {} at {} s", s.decided, s.ended / TICKS_PER_SECOND);
+        if name.starts_with("ARM") {
+            assert!(s.decided, "{name}: not decided in 20 minutes");
+        }
+        let sea = count(&s.built[0], &["ARMTSHIP", "CORTSHIP"])
+            + count(&s.built[1], &["ARMTSHIP", "CORTSHIP"]);
+        assert!(sea > 0, "{name}: no sea transport");
+    }
+}

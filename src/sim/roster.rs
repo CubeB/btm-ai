@@ -47,9 +47,10 @@ enum Kind {
     AirTransport,
     Shipyard,
     Destroyer,
+    SeaTransport,
 }
 
-const KINDS: [(Kind, &str, &str); 25] = [
+const KINDS: [(Kind, &str, &str); 26] = [
     (Kind::Commander, "ARMCOM", "CORCOM"),
     (Kind::Mex, "ARMMEX", "CORMEX"),
     (Kind::Solar, "ARMSOLAR", "CORSOLAR"),
@@ -75,6 +76,7 @@ const KINDS: [(Kind, &str, &str); 25] = [
     (Kind::AirTransport, "ARMATLAS", "CORVALK"),
     (Kind::Shipyard, "ARMSY", "CORSY"),
     (Kind::Destroyer, "ARMROY", "CORROY"),
+    (Kind::SeaTransport, "ARMTSHIP", "CORTSHIP"),
 ];
 
 const BASE_MENU: &[Kind] = &[
@@ -105,7 +107,7 @@ fn menu(k: Kind) -> Option<&'static [Kind]> {
         ]),
         Kind::VehiclePlant => Some(&[Kind::ScoutVehicle, Kind::LightTank]),
         Kind::AirPlant => Some(&[Kind::ScoutPlane, Kind::Fighter, Kind::AirTransport]),
-        Kind::Shipyard => Some(&[Kind::Destroyer]),
+        Kind::Shipyard => Some(&[Kind::Destroyer, Kind::SeaTransport]),
         _ => None,
     }
 }
@@ -326,6 +328,17 @@ fn template(k: Kind) -> UnitDef {
             d.can_be_transported = false;
             d.footprint = (4, 4);
             d.weapons = vec![weapon("SHIPGUN", 500, 150, 45)];
+            d
+        }
+        Kind::SeaTransport => {
+            let mut d = mobile(400, 4000, 8000, 2400, 60, SHIP);
+            d.floats = true;
+            d.can_be_transported = false;
+            d.footprint = (4, 4);
+            d.transport = Some(TransportDef {
+                capacity: 8,
+                max_size: 3,
+            });
             d
         }
     }

@@ -1359,14 +1359,14 @@ fn reclaim_fit(ctx: &Ctx<'_>, b: &Builder, p: Pos) -> bool {
 
 /// Whether builder `s` can get to `p` (§4.2 context, §4.11 "eligible"): a
 /// flyer always; a ship on naval-reachable water; a ground builder when
-/// `p` and the builder are on the same side of ground reachability. A
-/// constructor sent to a commander out in deep water could only walk to
-/// the shore and give up.
+/// home's ground reaches `p` (a builder on a shore strip may read as off
+/// the layer itself). A constructor sent to a commander out in deep water
+/// could only walk to the shore and give up.
 fn can_walk_to(ctx: &Ctx<'_>, s: &Sampled, p: Pos) -> bool {
     let reach = &ctx.world.reach;
     match ctx.def(s.unit.def) {
         Some(d) if d.flies => true,
         Some(d) if !d.move_class.hovers && d.move_class.min_depth > 0 => reach.naval_reachable(p),
-        _ => reach.ground_reachable(p) == reach.ground_reachable(s.unit.pos),
+        _ => reach.ground_reachable(p),
     }
 }
