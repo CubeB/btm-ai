@@ -460,3 +460,18 @@ fn every_build_is_staged_by_the_economy_at_most_once_per_plan_pass() {
         assert_eq!(u.len(), 1, "tick {t}: {units:?}");
     }
 }
+
+#[test]
+fn an_affordable_saved_for_item_without_a_site_ends_the_saving() {
+    // In a land mirror the saved-for vehicle plant was affordable but had
+    // no site, so the saving never ended and only economy types could be
+    // built: the commander stood idle with full metal for ten minutes.
+    let (vp, lab) = (DefId(16), DefId(10));
+    assert_eq!(super::unsaved_without_site(Some(vp), vp), None);
+    assert_eq!(
+        super::unsaved_without_site(Some(vp), lab),
+        Some(vp),
+        "another item's missing site does not end it"
+    );
+    assert_eq!(super::unsaved_without_site(None, vp), None);
+}

@@ -611,6 +611,7 @@ impl EconomyManager {
             let (site, purpose) = match found {
                 Ok(x) => x,
                 Err(_) => {
+                    saving = unsaved_without_site(saving, def);
                     if c.is(def, Role::Mex) {
                         if let Some(u) = self.upgrade_fallback(&s, b) {
                             return (Some(Job::Upgrade(u)), None, fails);
@@ -1239,6 +1240,17 @@ fn factory_assist(ctx: &Ctx<'_>, b: &Builder) -> Option<UnitId> {
         })
         .min_by_key(|s| (s.unit.pos.dist2(b.pos), s.id()))
         .map(|s| s.id())
+}
+
+/// The saving after `def`, now affordable, found no site (SPEC §4.2).
+///
+/// Saving waits for money, not for a site, so it starts whether or not a
+/// site exists. But once the saved-for item is affordable and still has
+/// nowhere to go, holding the saving would block every other type for
+/// good: metal full and every builder idle. So it ends there, and starts
+/// again if the item is ever unaffordable within its window.
+fn unsaved_without_site(saving: Option<DefId>, def: DefId) -> Option<DefId> {
+    saving.filter(|&s| s != def)
 }
 
 /// SPEC §5.7 exposure: remembered armed non-air contacts seen lately whose
