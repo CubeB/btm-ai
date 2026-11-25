@@ -15,6 +15,7 @@
 //! Determinism: integer maths only, a seeded xorshift stream owned by the
 //! sim, and every loop in unit, feature or player id order.
 
+mod arena_match;
 mod game;
 mod map;
 mod rng;
@@ -29,6 +30,7 @@ mod tests;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
+pub use arena_match::SimMatch;
 pub use game::{Game, GameError, Pilot};
 pub use map::{Map, MapBuilder, TileRect};
 pub use roster::Side;
