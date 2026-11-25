@@ -508,6 +508,13 @@ impl Sim {
     }
 
     fn build_tick(&mut self, u: &mut Unit, c: &Caps, def: DefId, at: Pos, cmd: Command) {
+        // The frame this order placed was destroyed: the order is over, as in
+        // a real engine (it is not silently placed again every tick).
+        if u.building.is_some_and(|f| !self.units.contains_key(&f)) {
+            self.reject(u, cmd, Reject::BadSite);
+            u.pop();
+            return;
+        }
         let center = self.footprint_center(def, at);
         let fp = self.def(def).footprint;
         let origin = footprint_origin(fp, center);

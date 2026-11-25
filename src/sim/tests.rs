@@ -123,6 +123,35 @@ fn build_completes_on_time_and_costs_exactly() {
 }
 
 #[test]
+fn a_destroyed_frame_ends_its_build_order() {
+    // Regression: a builder whose frame was killed placed a fresh frame
+    // every tick under the same order (346 shipyard frames died in one AI
+    // match), so the AI never saw the order fail.
+    let mut sim = game(2);
+    let solar = def(&sim, "ARMSOLAR");
+    let cmd = commander(&sim, P0);
+    order(
+        &mut sim,
+        P0,
+        cmd,
+        Command::Build {
+            def: solar,
+            at: Pos::new(232, 168),
+        },
+    );
+    sim.run(60);
+    let frame = sim.units.values().find(|u| u.def == solar).unwrap().id;
+    sim.remove_unit(frame, None, false);
+    sim.run(5);
+    assert!(sim.units.values().all(|u| u.def != solar));
+    assert!(sim.units[&cmd].cmds.is_empty());
+    assert!(sim
+        .rejected
+        .iter()
+        .any(|r| r.order.unit == cmd && r.reason == Reject::BadSite));
+}
+
+#[test]
 fn build_stalls_without_metal() {
     let mut sim = game(3);
     quiet_economy(&mut sim, P0, 75, 1000);
