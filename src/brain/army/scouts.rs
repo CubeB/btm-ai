@@ -162,6 +162,8 @@ impl ScoutManager {
                 .iter()
                 .copied()
                 .filter(|s| !s.within(home, OPENING_MIN_DISTANCE))
+                // A start the scout cannot get to is no leg for it.
+                .filter(|&s| fits(ctx, terrain, d, s))
                 .map(|s| (grid.staleness_at(s.vis_cell()), s))
                 .filter(|&(st, _)| st > OPENING_MIN_STALENESS)
                 .enumerate()

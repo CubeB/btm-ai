@@ -281,6 +281,22 @@ fn a_scout_explores_the_map() {
 }
 
 #[test]
+fn a_ground_scout_is_not_sent_to_a_start_across_water() {
+    // Regression: the opening leg skipped the terrain and reachability test,
+    // so a ground scout was sent to the enemy start across the strait, got
+    // as far as the shore, stopped, and was sent again every pass.
+    let (mut sim, mut ai) = game(strait(), false, &[], |_| {});
+    let fav = spawn(&mut sim, P0, "ARMFAV", Pos::new(450, 560));
+    let mut log = Vec::new();
+    play(&mut sim, &mut ai, 60 * S, &mut log, |_, _| {});
+    let far = Pos::new(2700, 512);
+    let moves = commands_to(&log, fav);
+    assert!(!moves.is_empty(), "the scout scouts its own side");
+    assert!(!moves.contains(&Command::Move(far)), "{moves:?}");
+    assert!(moves.len() < 20, "no re-issue loop: {}", moves.len());
+}
+
+#[test]
 fn a_combat_unit_is_borrowed_as_scout_and_returned() {
     let (mut sim, mut ai) = game(wide(), false, &[], |_| {});
     spawn(&mut sim, P0, "ARMLAB", Pos::new(300, 300));
