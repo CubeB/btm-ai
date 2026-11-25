@@ -391,6 +391,29 @@ fn a_sea_ferry_carries_the_army_across_the_strait() {
 }
 
 #[test]
+fn a_wave_without_a_ferry_waits_at_the_rally() {
+    // Regression: with the objective across the strait and no ferry, the
+    // wave attack-moved at it, stopped on the beach, and was re-ordered
+    // every pass (tens of thousands of orders refused by the limiter).
+    let (mut sim, mut ai) = game(strait(), true, &[("army.wave_size", "4")], |_| {});
+    spawn(&mut sim, P0, "ARMLAB", Pos::new(300, 300));
+    let raiders = spawn_row(&mut sim, P0, "ARMPW", Pos::new(450, 420), 6);
+    let mut log = Vec::new();
+    let mut assault = false;
+    play(&mut sim, &mut ai, 120 * S, &mut log, |_, ai| {
+        assault |= ai.world().army.phase == Phase::Assault && !ai.world().army.wave.is_empty();
+    });
+    assert!(assault, "a wave formed");
+    let rally = ai.world().army.rally.unwrap();
+    for &u in &raiders {
+        let cmds = commands_to(&log, u);
+        assert!(cmds.len() <= 4, "{u:?} was re-ordered: {cmds:?}");
+        let at = where_is(&sim, P0, u).unwrap();
+        assert!(at.within(rally, 200), "{u:?} at {at:?}, rally {rally:?}");
+    }
+}
+
+#[test]
 fn a_failed_landing_is_refused_and_books_nobody() {
     // No landing rings, and the objective inland is too far from water for
     // a sea landing: the search fails.

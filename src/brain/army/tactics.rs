@@ -443,6 +443,16 @@ impl ArmyManager {
         }
         if plan.wave.contains(&u) {
             if let Some(o) = plan.objective {
+                // An objective across water: walking at it only ends on the
+                // beach and is re-ordered every pass. Wait at the rally (the
+                // ferry muster, when there is one) for a ferry instead.
+                let reach = &ctx.world.reach;
+                if !d.move_class.hovers
+                    && !reach.ground_reachable(o)
+                    && reach.ground_reachable(here)
+                {
+                    return to_rally(ctx, u, here, plan.rally);
+                }
                 return Some(if k.army.attack_move {
                     Command::AttackMove(o)
                 } else {
