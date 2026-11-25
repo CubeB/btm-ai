@@ -128,7 +128,7 @@ fn mirror(map: Map, seed: u64, faction: Faction, minutes: Tick) -> Summary {
         if decided {
             break;
         }
-        if g.sim.tick() % TICKS_PER_SECOND == 0 {
+        if g.sim.tick().is_multiple_of(TICKS_PER_SECOND) {
             for (i, wet) in s.commander_wet_s.iter_mut().enumerate() {
                 let p = PlayerId(u8::try_from(i).unwrap());
                 let v = g.sim.view(p);
