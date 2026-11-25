@@ -1316,18 +1316,28 @@ fn exposed(ctx: &Ctx<'_>, p: Pos) -> bool {
 }
 
 /// SPEC §5.9 "expansion wanted": an extractor site on walkable ground that
-/// home cannot reach (no radius limit), nearest home first.
+/// home cannot reach (no radius limit), nearest home first. The site must
+/// also be a free deposit on our side (§4.5): no extractor within 48 (ours
+/// or a remembered enemy one), not under enemy guns, and with
+/// `build.expand_our_side` no closer to the enemy base than to ours. On a
+/// map split by water the far shore is the enemy's; ferrying builders to
+/// its extractors only fed them to its defences.
 fn unreachable_expansion(ctx: &Ctx<'_>) -> Option<Pos> {
     let w = &*ctx.world;
     let home = w.own.home?;
     let ground = w.reach.ground.as_ref()?;
     let mover = ctx.def(ground.mover)?;
+    let enemy = w.enemy_base();
     let mut deps: Vec<_> = w.map.deposits.iter().collect();
     deps.sort_by_key(|d| (d.center.dist2(home), d.id));
     deps.into_iter()
         .find(|d| {
             let t = ground.origin(d.center);
-            ctx.view.standable(t, mover.move_class) && !w.reach.ground_reachable(d.center)
+            ctx.view.standable(t, mover.move_class)
+                && !w.reach.ground_reachable(d.center)
+                && (!ctx.knobs.build.expand_our_side || facts::our_side(d.center, home, enemy))
+                && !facts::extractor_near_world(ctx.view, w, d.center, facts::EXTRACTOR_TAKEN)
+                && !siting::under_guns(ctx.view, ctx.knobs, w, d.center)
         })
         .map(|d| d.center)
 }
