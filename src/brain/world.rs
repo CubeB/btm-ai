@@ -71,9 +71,29 @@ pub struct Coordination {
     /// window, with the tick the window ends (§5.7, §4.2 rule 1). Default:
     /// empty.
     pub sheltering: BTreeMap<UnitId, Tick>,
+    /// **Transport writes, army reads:** failed ferry landings, by
+    /// `ferry.refusal_cell` cell of the objective, with the tick each
+    /// refusal lapses (§5.9 refusal memory, §5.2 objective). Default: empty.
+    pub ferry_refusals: BTreeMap<(i32, i32), Tick>,
+    /// **Transport writes, economy may read:** the army needs a ferry (§5.9,
+    /// latched with `ferry.want_from_map`). Default: false.
+    pub army_needs_ferry: bool,
 }
 
 impl Coordination {
+    /// The `ferry.refusal_cell` cell of a point.
+    pub fn refusal_cell(p: Pos, cell: i32) -> (i32, i32) {
+        let c = cell.max(1);
+        (p.x.div_euclid(c), p.z.div_euclid(c))
+    }
+
+    /// Whether a ferry landing for `p` failed recently (§5.2, §5.9).
+    pub fn landing_refused(&self, p: Pos, cell: i32, tick: Tick) -> bool {
+        self.ferry_refusals
+            .get(&Self::refusal_cell(p, cell))
+            .is_some_and(|&until| tick < until)
+    }
+
     /// Whether a builder is sheltering at `tick`.
     pub fn is_sheltering(&self, unit: UnitId, tick: Tick) -> bool {
         self.sheltering.get(&unit).is_some_and(|&t| tick < t)

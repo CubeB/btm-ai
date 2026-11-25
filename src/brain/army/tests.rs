@@ -41,7 +41,9 @@ impl Manager for NoEconomy {
     fn update(&mut self, _ctx: &mut Ctx<'_>, _out: &mut Staging) {}
 }
 
-/// The AI on P0 (ARM) with the economy stubbed out, a script on P1 (CORE).
+/// The AI on P0 (ARM) with the economy and the scouts stubbed out (a
+/// scout pass would borrow a combat unit, SPEC §5.10), a script on P1
+/// (CORE).
 fn game(map: Map, script: Script, vision: bool, overrides: &[(&str, &str)]) -> (Sim, Ai) {
     let mut cfg = SimConfig::two_player(17);
     cfg.order_delay = DEFAULT_ORDER_DELAY;
@@ -51,6 +53,7 @@ fn game(map: Map, script: Script, vision: bool, overrides: &[(&str, &str)]) -> (
     sim.set_script(P1, script);
     let mut ai = Ai::new(P0, &tuning(overrides), u64::from(draw)).unwrap();
     ai.set_manager(Source::Economy, Box::new(NoEconomy));
+    ai.set_manager(Source::Scouts, Box::new(NoEconomy));
     (sim, ai)
 }
 

@@ -522,24 +522,31 @@ fn objective(ctx: &Ctx<'_>) -> Option<Pos> {
     let k = &ctx.knobs.army;
     let w = &ctx.world;
     let base = w.enemy_base();
-    let first = w
-        .army
-        .hunt_target
-        .and_then(|c| w.contacts.get(c))
-        .map(|c| c.pos)
-        .or_else(|| {
-            w.grid
-                .best_attack_cell(base, dist(k.target_base_radius), k.threat_aversion)
-                .map(|c| c.center())
-        })
-        .or(base)
-        .or_else(|| {
-            let h = w.own.home.unwrap_or_default();
-            w.contacts
-                .iter()
-                .min_by_key(|c| (c.pos.dist2(h), c.id))
-                .map(|c| c.pos)
-        });
+    let h = w.own.home.unwrap_or_default();
+    let candidates = [
+        w.army
+            .hunt_target
+            .and_then(|c| w.contacts.get(c))
+            .map(|c| c.pos),
+        w.grid
+            .best_attack_cell(base, dist(k.target_base_radius), k.threat_aversion)
+            .map(|c| c.center()),
+        base,
+        w.contacts
+            .iter()
+            .min_by_key(|c| (c.pos.dist2(h), c.id))
+            .map(|c| c.pos),
+    ];
+    // Skip a candidate whose cell has a recent failed ferry landing; if
+    // every one is skipped, the first is used anyway.
+    let cell = ctx.knobs.ferry.refusal_cell;
+    let mut present = candidates.into_iter().flatten();
+    let head = present.next();
+    let first = head
+        .into_iter()
+        .chain(present)
+        .find(|&p| !w.coord.landing_refused(p, cell, ctx.tick))
+        .or(head);
     if let Some(c) = w.army.wave_centre {
         let near: Vec<Pos> = w
             .contacts

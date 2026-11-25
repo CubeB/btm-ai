@@ -1,7 +1,6 @@
 //! The army manager (SPEC §5.1-5.7, §5.11-5.13) and the other §5 roles, each
 //! its own slot: [`navy::NavyManager`], [`scouts::ScoutManager`],
-//! [`transport::TransportManager`] and [`air::AirManager`] (those four are
-//! still stubs).
+//! [`transport::TransportManager`] and [`air::AirManager`].
 //!
 //! # Where the army runs
 //!
@@ -41,7 +40,7 @@
 //!
 //! Reads: `world.own`, `world.contacts` and `world.enemy`, `world.grid`,
 //! `world.reach`, `world.coord` (`site_guard`, `ferry_rally`,
-//! `commander_tasked`), `world.economy`.
+//! `ferry_refusals`, `commander_tasked`), `world.economy`.
 //!
 //! Writes: `world.threat` (every field), `world.army` (every field),
 //! `world.coord.commander_fleeing`, `world.coord.sheltering`.
@@ -75,6 +74,8 @@ pub mod scouts;
 pub mod tactics;
 pub mod transport;
 
+#[cfg(test)]
+mod role_tests;
 #[cfg(test)]
 mod tests;
 
