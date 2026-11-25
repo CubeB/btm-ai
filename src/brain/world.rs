@@ -101,6 +101,15 @@ pub struct ArmyShared {
     /// The counter lean per answer type, in share points (§5.3, `mix.lean`),
     /// read by factory production (§4.4). Default: empty (no lean).
     pub lean: BTreeMap<DefId, i32>,
+    /// The commander is in danger (§5.7), as of the last sweep: the navy's
+    /// commander guard reads it (§5.12). Default: false.
+    pub commander_danger: bool,
+    /// The contacts endangering the commander, in id order (§5.7).
+    /// Default: empty.
+    pub commander_threats: Vec<UnitId>,
+    /// The enemy commander the hunt is allowed on (§5.5), for the wave and
+    /// the navy's submarines. Default: none.
+    pub hunt_target: Option<UnitId>,
 }
 
 /// State the economy keeps that other passes read. **Written by the

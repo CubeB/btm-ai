@@ -7,7 +7,10 @@
 //!    dropped, and so are orders to held units (scripted units and frames,
 //!    SPEC §3.2).
 //! 2. **Ownership.** Orders from a manager that may not order the unit
-//!    ([`super::Ownership::may_order`]) are dropped.
+//!    ([`super::Ownership::may_order`]) are dropped, with one exception, the
+//!    **survival rule**: the army's [`super::Priority::Urgent`] orders to
+//!    one of the economy's mobile builders pass (builder retreat and frame
+//!    hand-over, SPEC §5.7), and then outrank the planner's job (step 3).
 //! 3. **One manager per unit per tick.** If several managers staged orders
 //!    for one unit, the highest [`super::Priority`] wins, ties to the earliest
 //!    staged (pipeline order).
@@ -112,7 +115,12 @@ impl Dispatcher {
             match ownership.owner(unit) {
                 None => self.stats.not_ours += 1,
                 Some(Owner::Held) => self.stats.held += 1,
-                Some(_) if !ownership.may_order(unit, s.source) => self.stats.not_owner += 1,
+                Some(_)
+                    if !ownership.may_order(unit, s.source)
+                        && !survival_override(own, ownership, unit, &s) =>
+                {
+                    self.stats.not_owner += 1
+                }
                 Some(_) => by_unit.entry(unit).or_default().push((i, s)),
             }
         }
@@ -226,6 +234,17 @@ impl Dispatcher {
             self.in_flight.record(unit, tick, orders);
         }
     }
+}
+
+/// The survival rule (step 2): an urgent army order to a builder the
+/// economy owns (not lent) may pass.
+fn survival_override(own: &OwnState, ownership: &Ownership, unit: UnitId, s: &Staged) -> bool {
+    s.source == Source::Army
+        && s.priority == super::Priority::Urgent
+        && ownership.owner(unit) == Some(Owner::One(Source::Economy))
+        && own
+            .get(unit)
+            .is_some_and(|u| u.class == super::own::UnitClass::Builder && !u.building)
 }
 
 /// The winning source among one unit's staged entries: highest priority,

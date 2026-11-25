@@ -404,6 +404,12 @@ impl Sim {
         &self.defs
     }
 
+    /// Changes a unit definition in place, for tests that need a made-up
+    /// variant of a roster unit (every seat sees the change).
+    pub fn def_mut(&mut self, id: DefId) -> Option<&mut UnitDef> {
+        self.defs.get_mut(usize::from(id.0))
+    }
+
     pub fn def_id(&self, name: &str) -> Option<DefId> {
         self.defs
             .iter()
