@@ -1,0 +1,17 @@
+[package]
+name = "btm-ai"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "A skirmish AI for Byte Tactics, clean-room from a behavioural spec."
+repository = "https://github.com/CubeB/btm-ai"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
